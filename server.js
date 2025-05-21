@@ -309,6 +309,84 @@ cron.schedule('0 0 * * *', async () => {
     scheduled: true,
     timezone: "Africa/Maputo" // Ajuste para o fuso horário desejado
 });
+// server.js
+// ... (imports, config, middleware, etc.) ...
+
+// Logo após a seção de CONEXÃO COM O MONGODB e antes dos MODELOS
+// Ou no final, antes de app.listen()
+
+// -----------------------------------------------------------------------------
+// FUNÇÃO PARA CRIAR ADMIN INICIAL (SE NÃO EXISTIR)
+// -----------------------------------------------------------------------------
+async function createInitialAdmin() {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_INITIAL_PASSWORD;
+
+    if (!adminEmail || !adminPassword) {
+        console.warn("Credenciais de admin inicial não definidas no .env. Nenhum admin inicial será criado.");
+        return;
+    }
+
+    try {
+        const existingAdmin = await User.findOne({ email: adminEmail.toLowerCase() });
+
+        if (existingAdmin) {
+            console.log(`Usuário admin (${adminEmail}) já existe.`);
+            // Opcional: verificar se isAdmin é true e atualizar se não for
+            if (!existingAdmin.isAdmin) {
+                existingAdmin.isAdmin = true;
+                await existingAdmin.save();
+                console.log(`Usuário ${adminEmail} atualizado para admin.`);
+            }
+            return;
+        }
+
+        // Se não existe, criar
+        // Detalhes adicionais para o admin (nome, pergunta/resposta de segurança)
+        // É melhor que o admin preencha isso após o primeiro login,
+        // mas para criar o usuário precisamos de alguns campos obrigatórios.
+        // Vamos usar placeholders ou valores padrão simples.
+        const name = "Administrador Principal";
+        const securityQuestion = "Qual é o código de segurança do sistema?"; // Placeholder
+        const securityAnswer = "admin_recovery_code_123"; // Placeholder, será hasheada
+
+        const newAdmin = new User({
+            name,
+            email: adminEmail.toLowerCase(),
+            password: adminPassword, // Será hasheada pelo hook pre-save
+            securityQuestion,
+            securityAnswer, // Será hasheada pelo hook pre-save
+            isAdmin: true,
+            isBlocked: false,
+            balance: { MT: 0 },
+            bonusBalance: 0, // Admin não precisa de bônus inicial
+            firstDepositMade: true // Para não ter restrições de admin
+        });
+
+        await newAdmin.save();
+        console.log(`Usuário admin inicial (${adminEmail}) criado com sucesso.`);
+        console.log("IMPORTANTE: O administrador deve alterar a senha padrão no primeiro login!");
+
+    } catch (error) {
+        console.error("Erro ao tentar criar usuário admin inicial:", error);
+    }
+}
+
+// ... (Modelos do MongoDB) ...
+
+// Modifique a seção de CONEXÃO COM O MONGODB para chamar createInitialAdmin
+mongoose.connect(MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+})
+.then(() => {
+    console.log('MongoDB conectado com sucesso!');
+    createInitialAdmin(); // << CHAME A FUNÇÃO AQUI
+})
+.catch(err => console.error('Erro ao conectar ao MongoDB:', err));
+
+
+// ... (Resto do seu server.js: Funções Utilitárias, Cron Jobs, Rotas, app.listen) ...
 
 
 // -----------------------------------------------------------------------------
