@@ -1116,6 +1116,79 @@ adminRouter.get('/deposits', async (req, res) => {
         res.status(500).json({ message: "Erro ao listar depósitos." });
     }
 });
+// EM server.js (dentro de adminRouter)
+
+// 10.4.6. Ajustar Saldo do Usuário (PATCH /api/admin/users/:userId/adjust-balance)
+adminRouter.patch('/users/:userId/adjust-balance', async (req, res) => {
+    const { userId } = req.params;
+    const { amount, balanceType, reason, operation = 'subtract' } = req.body; // balanceType: 'MT', 'bonusBalance', 'referralEarnings'
+                                                                      // operation: 'add' ou 'subtract'
+
+    if (!amount || typeof amount !== 'number' || amount <= 0) {
+        return res.status(400).json({ message: "Valor (amount) inválido ou não fornecido." });
+    }
+    if (!balanceType || !['MT', 'bonusBalance', 'referralEarnings'].includes(balanceType)) {
+        return res.status(400).json({ message: "Tipo de saldo (balanceType) inválido." });
+    }
+    if (!reason || reason.trim() === '') {
+        return res.status(400).json({ message: "Motivo (reason) é obrigatório para o ajuste." });
+    }
+
+    try {
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "Usuário não encontrado." });
+        }
+
+        let originalValue;
+
+        if (balanceType === 'MT') {
+            originalValue = user.balance.MT || 0;
+            if (operation === 'subtract') {
+                if (originalValue < amount) return res.status(400).json({ message: `Saldo MT insuficiente (${originalValue.toFixed(2)}) para remover ${amount.toFixed(2)}.` });
+                user.balance.MT -= amount;
+            } else {
+                user.balance.MT += amount;
+            }
+        } else if (balanceType === 'bonusBalance') {
+            originalValue = user.bonusBalance || 0;
+            if (operation === 'subtract') {
+                if (originalValue < amount) return res.status(400).json({ message: `Saldo de Bônus insuficiente (${originalValue.toFixed(2)}) para remover ${amount.toFixed(2)}.` });
+                user.bonusBalance -= amount;
+            } else {
+                user.bonusBalance += amount;
+            }
+        } else if (balanceType === 'referralEarnings') {
+            originalValue = user.referralEarnings || 0;
+            if (operation === 'subtract') {
+                if (originalValue < amount) return res.status(400).json({ message: `Saldo de Ganhos de Referência insuficiente (${originalValue.toFixed(2)}) para remover ${amount.toFixed(2)}.` });
+                user.referralEarnings -= amount;
+            } else {
+                user.referralEarnings += amount;
+            }
+        }
+
+        // Opcional: Registrar essa transação administrativa em um log/histórico
+        // Ex: const adminLog = new AdminActionLog({ adminId: req.user.id, targetUserId: userId, action: 'adjust_balance', details: { amount, balanceType, reason, operation, originalValue, newValue: user[balanceType] || user.balance.MT }});
+        // await adminLog.save();
+
+        await user.save();
+        res.json({
+            message: `Saldo ${balanceType} do usuário ${user.name} ${operation === 'subtract' ? 'reduzido' : 'aumentado'} em ${amount.toFixed(2)} MT. Motivo: ${reason}`,
+            user: { // Retornar os saldos atualizados
+                _id: user._id,
+                name: user.name,
+                balance: user.balance,
+                bonusBalance: user.bonusBalance,
+                referralEarnings: user.referralEarnings
+            }
+        });
+
+    } catch (error) {
+        console.error("Admin - Erro ao ajustar saldo do usuário:", error);
+        res.status(500).json({ message: "Erro interno ao ajustar saldo." });
+    }
+});
 
 // 10.1.2. Aprovar ou Rejeitar Depósito (PATCH /api/admin/deposits/:depositId)
 adminRouter.patch('/deposits/:depositId', async (req, res) => {
