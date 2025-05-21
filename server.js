@@ -15,7 +15,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI; // Ex: mongodb://localhost:27017/investment_site ou sua string do Atlas/Render
 const JWT_SECRET = process.env.JWT_SECRET || 'your-very-strong-jwt-secret-key';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5500'; // Ou a URL do seu frontend no Render
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://gold-mt.netlify.app'; // Ou a URL do seu frontend no Render
 
 // -----------------------------------------------------------------------------
 // 2. MIDDLEWARE
